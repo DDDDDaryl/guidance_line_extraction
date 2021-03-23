@@ -4,3 +4,5 @@ checkpoints/
 DataSet/
 image/
 *.json
+*.pth
+*.tar
