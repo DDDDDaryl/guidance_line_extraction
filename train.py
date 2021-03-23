@@ -6,6 +6,8 @@ from model import SSD300, MultiBoxLoss
 from datasets import PascalVOCDataset
 from utils import *
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tensorboardX import SummaryWriter
+import datetime
 
 # Data parameters
 data_folder = './'  # folder with data files
@@ -16,21 +18,24 @@ keep_difficult = True  # use objects considered difficult to detect?
 n_classes = len(label_map)  # number of different types of objects
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 # Learning parameters
-checkpoint =None #  path to model checkpoint, None if none
-batch_size = 32  # batch size 
+checkpoint = 'checkpoint_ssd300.pth' #  path to model checkpoint, None if none
+checkpoint_name = checkpoint
+batch_size = 8  # batch size
+save_period = 10
+epoch_num = 941
 # iterations = 120000  # number of iterations to train  120000
-workers = 8  # number of workers for loading data in the DataLoader 4
-print_freq = 200  # print training status every __ batches
+workers = 16  # number of workers for loading data in the DataLoader 4
+print_freq = 1  # print training status every __ batches
 lr =1e-3  # learning rate
 #decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
 momentum = 0.9  # momentum
-weight_decay = 5e-4  # weight decay
+weight_decay = 3e-4  # weight decay
 grad_clip = None  # clip if gradients are exploding, which may happen at larger batch sizes (sometimes at 32) - you will recognize it by a sorting error in the MuliBox loss calculation
 
-cudnn.benchmark = True
+log_path = './log'
 
+cudnn.benchmark = True
 
 def main():
     """
@@ -65,7 +70,7 @@ def main():
 
     else:
         print("checkpoint load")
-        checkpoint = torch.load(checkpoint)
+        checkpoint = torch.load(checkpoint, map_location='cuda:0')
         start_epoch = checkpoint['epoch'] + 1
         print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
         model = checkpoint['model']
@@ -89,10 +94,21 @@ def main():
     # Calculate total number of epochs to train and the epochs to decay learning rate at (i.e. convert iterations to epochs)
     # To convert iterations to epochs, divide iterations by the number of iterations per epoch
     # now it is mobilenet v3,VGG paper trains for 120,000 iterations with a batch size of 32, decays after 80,000 and 100,000 iterations,
-    epochs = 600
+
+    try:
+        # print(checkpoint)
+        last_step = int(os.path.basename(checkpoint_name).split('_')[-1].split('.')[0])
+    except:
+        last_step = 0
+
+    step = max(0, last_step)
+    print('last_step', last_step)
+    print('step: ', step)
+    epochs = epoch_num
     # decay_lr_at =[154, 193]
     # print("decay_lr_at:",decay_lr_at)
     print("epochs:",epochs)
+    num_iter_per_epoch = len(train_loader)
 
     for param_group in optimizer.param_groups:
         optimizer.param_groups[1]['lr']=lr
@@ -101,8 +117,11 @@ def main():
     #different scheduler six way you could try
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max = (epochs // 7) + 1) 
     scheduler = ReduceLROnPlateau(optimizer,mode="min",factor=0.1,patience=15,verbose=True, threshold=0.00001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
-
+    writer = SummaryWriter(log_path + f'/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}/')
     for epoch in range(start_epoch, epochs):
+        last_epoch = start_epoch
+        if epoch < last_epoch:
+            continue
 
         # Decay learning rate at particular epochs
         # if epoch in decay_lr_at:
@@ -116,10 +135,14 @@ def main():
               optimizer=optimizer,
               epoch=epoch)
         print("epoch loss:",train_loss)      
-        scheduler.step(train_loss)      
-
+        scheduler.step(train_loss)
+        step += num_iter_per_epoch
+        # niter = (epoch - 760) * len(train_loader) * batch_k
+        writer.add_scalars('Loss', {'train': train_loss.item()}, step)
         # Save checkpoint
-        save_checkpoint(epoch, model, optimizer)
+        if epoch%save_period == 0:
+            save_checkpoint(epoch, model, optimizer, step)
+            # save_checkpoint(model, f'SSD_{epoch}_{step}.pth')
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -172,7 +195,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # Print status
         if i % print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}][{3}]\t'
+            print('\rEpoch: [{0}][{1}/{2}][{3}]\t'
                   'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data Time {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch, i, len(train_loader),optimizer.param_groups[1]['lr'],

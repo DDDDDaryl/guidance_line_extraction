@@ -5,12 +5,14 @@ import random
 import xml.etree.ElementTree as ET
 import torchvision.transforms.functional as FT
 import time
+
+file_num = 0
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 # Label map
-voc_labels = ('aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable',
-              'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
+# voc_labels = ('aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable',
+#               'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
+voc_labels = (['rice'])
 label_map = {k: v + 1 for v, k in enumerate(voc_labels)}
 label_map['background'] = 0
 rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
@@ -123,6 +125,76 @@ def create_data_lists(voc07_path, voc12_path, output_folder):
     print('\nThere are %d test images containing a total of %d objects. Files have been saved to %s.' % (
         len(test_images), n_objects, os.path.abspath(output_folder)))
 
+def create_userDef_data_lists(userDefDataset_path, output_folder):
+    """
+    Create lists of images, the bounding boxes and labels of the objects in these images, and save these to file.
+
+    :param userDefDataset_path: path to the dataset folder
+    :param output_folder: folder where the JSONs must be saved
+    """
+    userDefDataset_path = os.path.abspath(userDefDataset_path)
+
+    train_images = list()
+    train_objects = list()
+    n_objects = 0
+
+    # Training data
+    for path in [userDefDataset_path]:
+
+        # Find IDs of images in training data
+        with open(os.path.join(path, 'ImageSets/Main/trainval.txt')) as f:
+            ids = f.read().splitlines()
+
+        for id in ids:
+            # Parse annotation's XML file
+            objects = parse_annotation(os.path.join(path, 'Annotations', id + '.xml'))
+            if len(objects) == 0:
+                continue
+            n_objects += len(objects)
+            train_objects.append(objects)
+            train_images.append(os.path.join(path, 'JPEGImages', id + '.jpg'))
+
+    assert len(train_objects) == len(train_images)
+
+    # Save to file
+    with open(os.path.join(output_folder, 'TRAIN_images.json'), 'w') as j:
+        json.dump(train_images, j)
+    with open(os.path.join(output_folder, 'TRAIN_objects.json'), 'w') as j:
+        json.dump(train_objects, j)
+    with open(os.path.join(output_folder, 'label_map.json'), 'w') as j:
+        json.dump(label_map, j)  # save label map too
+
+    print('\nThere are %d training images containing a total of %d objects. Files have been saved to %s.' % (
+        len(train_images), n_objects, os.path.abspath(output_folder)))
+
+    # Test data
+    test_images = list()
+    test_objects = list()
+    n_objects = 0
+
+    # Find IDs of images in the test data
+    with open(os.path.join(userDefDataset_path, 'ImageSets/Main/test.txt')) as f:
+        ids = f.read().splitlines()
+
+    for id in ids:
+        # Parse annotation's XML file
+        objects = parse_annotation(os.path.join(userDefDataset_path, 'Annotations', id + '.xml'))
+        if len(objects) == 0:
+            continue
+        test_objects.append(objects)
+        n_objects += len(objects)
+        test_images.append(os.path.join(userDefDataset_path, 'JPEGImages', id + '.jpg'))
+
+    assert len(test_objects) == len(test_images)
+
+    # Save to file
+    with open(os.path.join(output_folder, 'TEST_images.json'), 'w') as j:
+        json.dump(test_images, j)
+    with open(os.path.join(output_folder, 'TEST_objects.json'), 'w') as j:
+        json.dump(test_objects, j)
+
+    print('\nThere are %d test images containing a total of %d objects. Files have been saved to %s.' % (
+        len(test_images), n_objects, os.path.abspath(output_folder)))
 
 def decimate(tensor, m):
     """
@@ -603,11 +675,11 @@ def transform(image, boxes, labels, difficulties, split):
     new_boxes = boxes
     new_labels = labels
     new_difficulties = difficulties
+
     # Skip the following operations for evaluation/testing
     if split == 'TRAIN':
         # A series of photometric distortions in random order, each with 50% chance of occurrence, as in Caffe repo
         new_image = photometric_distort(new_image)
-
         # Convert PIL image to Torch tensor
         new_image = FT.to_tensor(new_image)
 
@@ -676,7 +748,7 @@ def accuracy(scores, targets, k):
     return correct_total.item() * (100.0 / batch_size)
 
 
-def save_checkpoint(epoch, model, optimizer):
+def save_checkpoint(epoch, model, optimizer, step):
     """
     Save model checkpoint.
 
@@ -691,8 +763,10 @@ def save_checkpoint(epoch, model, optimizer):
     torch.save(state, filename)
 
     #now = time.strftime("%Y-%m-%d-%H_%M_%S",time.localtime(time.time())) 
-    now = time.strftime("%Y-%m-%d-%H",time.localtime(time.time())) 
-    torch.save(state, now)
+    # now = time.strftime("%Y-%m-%d-%H",time.localtime(time.time()))
+    save_path = 'checkpoints/' + f'SSD_{epoch}_{step}.pth'
+    print('Saving checkpoint to file ', save_path)
+    torch.save(state, save_path)
 
 
 class AverageMeter(object):

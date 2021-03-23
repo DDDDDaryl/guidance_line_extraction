@@ -10,9 +10,7 @@ import logging
 from collections import OrderedDict
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-     
-        
-  
+
 def conv_bn(inp, oup, stride, groups=1, activation=nn.ReLU6):
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False, groups=groups),
@@ -122,11 +120,11 @@ class MobileNetV3_Large(nn.Module):
     #          param.requires_grad = False
     #     print("\nLoaded base model.\n") 	
 
-    def init_weights(self, pretrained=None):#"./mbv3_large.old.pth.tar"
+    def init_weights(self, pretrained="./mbv3_large.old.pth.tar"):#"./mbv3_large.old.pth.tar"
         if isinstance(pretrained, str):
             logger = logging.getLogger()
 
-            checkpoint = torch.load(pretrained,map_location='cpu') ["state_dict"]      
+            checkpoint = torch.load(pretrained) ["state_dict"]      # ,map_location='cpu'
             self.load_state_dict(checkpoint,strict=False)
             for param in self.parameters():
                 param.requires_grad = True # to be or not to be
