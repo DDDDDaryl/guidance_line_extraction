@@ -9,6 +9,8 @@ class camCapture:
 
         # 摄影机连接。
         self.capture = cv2.VideoCapture(dev)
+        # self.capture.set(3, 1280)
+        # self.capture.set(4, 720)
 
     def isOpened(self):
         return self.capture.isOpened()

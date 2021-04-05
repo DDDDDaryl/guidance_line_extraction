@@ -10,40 +10,40 @@ import queue
 weeder_camera_intrinsic = {
     # R，旋转矩阵
 
-    "R": [[1, 0, 0],
-          [0, 1, 0],
-          [0, 0, 1]],
+    "R": [[0.9817, 0.0952, 0.1648],
+          [-0.1092, 0.9910, 0.0779],
+          [-0.1559, -0.0944, 0.9833]],
     # t，平移向量
-    "T": [0, 0, 1500.0000000],
+    "T": [-85.3822, -126.7623, 1000.0000000],
     # 焦距，f/dx, f/dy
-    "f": [1.4765e3, 1.4749e3],
+    "f": [841.5445, 844.8744],
     # principal point，主点，主轴与像平面的交点
-    "c": [656.7926, 365.5874],
-    "IntrinsicMatrix": [[1.4765e3, 0, 0.6568e3, 0],
-                        [0, 1.4749e3, 0.3656e3, 0],
-                        [0, 0, 0.0010e3, 0]],
-    "AspectRatio": 16/9
+    "c": [343.0381, 239.3140],
+    "IntrinsicMatrix": [[841.5445, 0, 343.0381, 0],
+                        [0, 844.8744, 239.3140, 0],
+                        [0, 0, 1, 0]],
+    "AspectRatio": 4/3
 }
 
 exp_camera_intrinsic = {
     # R，旋转矩阵
 
-    "R": [[0.9982, 0.0363, 0.0478],
-          [-0.0373, 0.9991, 0.0189],
-          [-0.0471, -0.0206, 0.9987]],
+    "R": [[1, -0.0039, -0.009],
+          [0.0039, 1, 0.0043],
+          [0.009, -0.0044, 1]],
     # t，平移向量
-    "T": [-63.9398, -61.9131, 579.8560],
+    "T": [56.9722,  -30.4035,  785.3813],
     # 焦距，f/dx, f/dy
-    "f": [1.4233e3, 1.4220e3],
+    "f": [1.4507e3, 1.4522e3],
     # principal point，主点，主轴与像平面的交点
-    "c": [660.4364, 371.8500],
-    "IntrinsicMatrix": [[1.4233e3, 0, 660.4364, 0],
-                        [0, 1.4220e3, 371.8500, 0],
+    "c": [644.9777, 363.6077],
+    "IntrinsicMatrix": [[1.4507e3, 0, 644.9777, 0],
+                        [0, 1.4522e3, 363.6077, 0],
                         [0, 0, 1, 0]],
-    "AspectRatio": 16/9
+    "AspectRatio": 4/3
 }
 
-camera_intrinsic = exp_camera_intrinsic
+camera_intrinsic = weeder_camera_intrinsic
 #
 
 class GuidanceLineDistractor:
@@ -175,11 +175,11 @@ class GuidanceLineDistractor:
             intercept = (lines[0][1] + lines[1][1]) / 2
         else:
             # 保持不变
-            slope = self.smoothed_slope
-            intercept = self.smoothed_intercept
+            # slope = self.smoothed_slope
+            # intercept = self.smoothed_intercept
             # 归位
-            # slope = 0
-            # intercept = 0.5
+            slope = 0
+            intercept = 0.5
 
         if self.slope_window.full():
             self.slope_window.get()
@@ -213,6 +213,7 @@ def twoD_to_threeD(pos_in_img_space, cam_height):
     # 此函数只是外部定义而已，大家可自行定义
 
     # (R T, 0 1)矩阵
+    weeder_camera_intrinsic['T'] = [0, 0, cam_height]
     Trans = np.hstack((camera_intrinsic['R'], [[camera_intrinsic['T'][0]], [camera_intrinsic['T'][1]], [camera_intrinsic['T'][2]]]))
     tmp = [[0, 0, 0, 1]]
     Trans = np.concatenate((Trans, tmp), axis=0)

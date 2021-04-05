@@ -5,6 +5,7 @@ import time
 import cv2
 import os
 import numpy as np
+import datetime
 import serial_send as ss
 from guidance_line_algorithm.line_fitting import twoD_to_threeD, InjuryRateCal
 import guidance_line_algorithm.line_fitting as line_fitting
@@ -18,7 +19,7 @@ import cam_accelerate
 # import pandas as pd
 
 
-zc = 1000 # 相机高度 mm
+zc = 960 # 相机高度 mm
 # IRC = InjuryRateCal()
 
 # temporary variable
@@ -40,7 +41,7 @@ path_name = os.path.join(cwd, 'DataSet/JPEGImages')
 video_path = os.path.join(cwd, 'detect_result')
 # Resolution (length)
 input_length = 480
-ratio = 1280 / input_length
+ratio = 640 / input_length
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -213,7 +214,7 @@ def video_detect(file, cover_path, fps=30, timeF=1):
     cap.start()
     cv2.waitKey(1000)
     # cap = cv2.VideoCapture(file)  # 按照绝对路径打开视频
-    # cover_path = os.path.abspath(cover_path)
+    cover_path = os.path.abspath(cover_path)
 
 
 
@@ -226,16 +227,16 @@ def video_detect(file, cover_path, fps=30, timeF=1):
         # 第二个参数是frame，是当前截取一帧的图片。
         # cap.set(3, 480)  # width=1920
         # cap.set(4, 270)  # height=1080
-        # frame = cap.getframe()
+        frame = cap.getframe()
 
-        # frame = Image.fromarray(frame)
-        # frame.thumbnail((640, 640))
+        frame = Image.fromarray(frame)
+        frame.thumbnail((input_length, input_length))
 
-        # sp = frame.size
-        # sz = (sp[0], sp[1])
+        sp = frame.size
+        sz = (sp[0], sp[1])
         f = 1
-        # fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        # out = cv2.VideoWriter(os.path.join(cover_path, 'detect.avi'), fourcc, fps, sz)
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        out = cv2.VideoWriter(os.path.join(cover_path, f'{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}.avi'), fourcc, fps, sz)
         # total time consumed
 
 
@@ -253,7 +254,7 @@ def video_detect(file, cover_path, fps=30, timeF=1):
                 frame = Image.fromarray(frame)
                 frame = detect(frame, min_score=0.3, max_overlap=0.45, top_k=200)
                 frame = np.array(frame)
-                # out.write(frame)
+                out.write(frame)
                 cv2.imshow('frame', frame)
             f = f + 1
             cv2.waitKey(1)
@@ -279,6 +280,8 @@ def calculate_pos(slope, intercept, ratio, length, height):
     origin_3d = twoD_to_threeD(origin_pos_3d, zc)
     offset = pos[1] - origin_3d[1]
 
+    # offset += 22
+
     print(offset)
     if abs(offset) < 10:
         return 0
@@ -295,7 +298,7 @@ if __name__ == '__main__':
 
     video_file = 'D:\\华农项目资料\\深度学习\\raw\\2020_01_06_17_27_IMG_0869.MOV'
     output_path = os.path.join(video_path, 'output')
-    video_detect(1, output_path, 30, 1)
+    video_detect(1, output_path, 15, 1)
 
     # IRC.calculateInjuryRate()
 
